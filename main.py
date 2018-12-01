@@ -11,11 +11,11 @@ def read_csv_file(csv_file_name):
         train_labels = [line[1]  for line in csv_reader]
     return train_tweets, train_labels
 
-def remove_stop_words(words, stop_words_file_name="stop_words.txt"):
-  with open(stop_words_file_name, 'r', encoding="utf-8") as f:
-    stop_words = f.read().lower().strip().split()
+def remove_stop_words(words, stop_words_file_name = "stop_words.txt"):
+    with open(stop_words_file_name, 'r', encoding = "utf-8") as f:
+        stop_words = f.read().lower().strip().split()
 
-  return [x for x in words if x not in stop_words]
+    return [x for x in words if x not in stop_words]
 
 
 if __name__ == "__main__":
