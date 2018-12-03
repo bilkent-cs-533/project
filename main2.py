@@ -10,6 +10,7 @@ from sklearn import preprocessing, tree
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import KMeans
 import time
+import math
 
 test_data_file_name = 'test_tweets.txt'
 train_data_file_name = 'train_tweets.txt'
@@ -38,6 +39,19 @@ def get_corpus(docs):
     i += 1
 
   return d
+
+# returns a dictionary of word to count of document which contains the word
+def get_inverse_doc_freq(docs, corpus):
+  d = dict()
+  for word in corpus:
+    i = 0
+    for doc in docs:
+      if word in doc:
+        i += 1
+    d[word] = i
+
+  return d
+
 
 def remove_stop_words(stop_words_file_name, words):
   with open(stop_words_file_name, 'r', encoding="utf-8") as myfile:
@@ -84,6 +98,55 @@ def get_features_as_binary_freq_dist(docs, corpus):
     for word in doc:
       l[i, corpus[word]] = 1
       
+  return l
+
+def get_features_tf_idf0(docs, corpus):
+  l = np.zeros((len(docs), len(corpus)))
+  N = len(docs)
+  idf_dict = get_inverse_doc_freq(docs, corpus)
+  for i,doc in enumerate(docs):
+    d = dict()
+    for word in doc:
+      if word in d:
+        d[word] += 1
+      else:
+        d[word] = 1
+    for word in doc:
+      l[i, corpus[word]] = d[word] * math.log2(N/idf_dict[word])
+      # l[i, corpus[word]] = 1 + math.log2(d[word])
+      # l[i, corpus[word]] = (1 + math.log2(d[word])) * math.log2(N/idf_dict[word])
+  return l
+
+def get_features_tf_idf1(docs, corpus):
+  l = np.zeros((len(docs), len(corpus)))
+  for i,doc in enumerate(docs):
+    d = dict()
+    for word in doc:
+      if word in d:
+        d[word] += 1
+      else:
+        d[word] = 1
+    for word in doc:
+      # l[i, corpus[word]] = d[word] * math.log2(N/idf_dict[word])
+      l[i, corpus[word]] = 1 + math.log2(d[word])
+      # l[i, corpus[word]] = (1 + math.log2(d[word])) * math.log2(N/idf_dict[word])
+  return l
+
+def get_features_tf_idf2(docs, corpus):
+  l = np.zeros((len(docs), len(corpus)))
+  N = len(docs)
+  idf_dict = get_inverse_doc_freq(docs, corpus)
+  for i,doc in enumerate(docs):
+    d = dict()
+    for word in doc:
+      if word in d:
+        d[word] += 1
+      else:
+        d[word] = 1
+    for word in doc:
+      # l[i, corpus[word]] = d[word] * math.log2(N/idf_dict[word])
+      # l[i, corpus[word]] = 1 + math.log2(d[word])
+      l[i, corpus[word]] = (1 + math.log2(d[word])) * math.log2(N/idf_dict[word])
   return l
 
 def get_cleaned_docs_from_file(file_name):
@@ -144,6 +207,6 @@ def experiment_runner(model_func, feature_generator_func):
 # experiment_runner(run_sgd_for_func, get_features_merged)
 # experiment_runner(run_decision_tree_for_func, get_features_merged)
 # experiment_runner(run_random_forest_for_func, get_features_merged)
-experiment_runner(run_k_means_for_func, get_features_merged)
-
+# experiment_runner(run_k_means_for_func, get_features_merged)
+experiment_runner(run_svc_for_func, get_features_tf_idf0)
 
