@@ -197,16 +197,16 @@ def run_k_means_for_func(feature_generator_func):
 
 def experiment_runner(model_func, feature_generator_func):
   start = time.time()
-  run_svc_for_func(get_features_as_freq_dist)
+  model_func(feature_generator_func)
   end = time.time()
   print( 'executed in ', end - start, ' secs')
 
-# experiment_runner(run_svc_for_func, get_features_as_freq_dist)
-# experiment_runner(run_svc_for_func, get_features_as_binary_freq_dist)
-# experiment_runner(run_svc_for_func, get_features_merged)
-# experiment_runner(run_sgd_for_func, get_features_merged)
-# experiment_runner(run_decision_tree_for_func, get_features_merged)
-# experiment_runner(run_random_forest_for_func, get_features_merged)
-# experiment_runner(run_k_means_for_func, get_features_merged)
+experiment_runner(run_svc_for_func, get_features_as_freq_dist)
+experiment_runner(run_svc_for_func, get_features_as_binary_freq_dist)
+experiment_runner(run_svc_for_func, get_features_merged)
+experiment_runner(run_sgd_for_func, get_features_merged)
+experiment_runner(run_decision_tree_for_func, get_features_merged)
+experiment_runner(run_random_forest_for_func, get_features_merged)
+experiment_runner(run_k_means_for_func, get_features_merged)
 experiment_runner(run_svc_for_func, get_features_tf_idf0)
 
