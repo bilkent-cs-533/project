@@ -1,3 +1,10 @@
+# Ignore DeprecationWarning caused by imp module
+from warnings import catch_warnings, filterwarnings
+with catch_warnings():
+    filterwarnings("ignore",category=DeprecationWarning)
+    import imp
+############
+
 import numpy as np
 from TurkishStemmer import TurkishStemmer 
 import numpy as np
@@ -9,8 +16,10 @@ from sklearn.linear_model import SGDClassifier
 from sklearn import preprocessing, tree
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import KMeans
+from sklearn.neural_network import MLPClassifier
 import time
 import math
+import random
 
 test_data_file_name = 'test_tweets.txt'
 train_data_file_name = 'train_tweets.txt'
@@ -21,7 +30,9 @@ stop_words_file_name = 'stop_words_tr_147.txt'
 def get_data_class_pairs(file_name):
   data2class = dict()
   with open(file_name, 'r', encoding='utf-8') as f:
-    for l in f.readlines():
+    lines = f.readlines()
+    random.shuffle(lines)
+    for l in lines:
       arr = l.split('\t')
       data2class[arr[0]] = arr[1]
   return data2class
@@ -195,18 +206,24 @@ def run_k_means_for_func(feature_generator_func):
   clf = KMeans(init='k-means++', n_clusters=3, n_init=10)
   model_runner(clf, feature_generator_func)
 
+def run_mlp_for_func(feature_generator_func):
+  clf = clf = MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(5,), random_state=1)
+  model_runner(clf, feature_generator_func)
+
 def experiment_runner(model_func, feature_generator_func):
   start = time.time()
   model_func(feature_generator_func)
   end = time.time()
   print( 'executed in ', end - start, ' secs')
 
-experiment_runner(run_svc_for_func, get_features_as_freq_dist)
-experiment_runner(run_svc_for_func, get_features_as_binary_freq_dist)
-experiment_runner(run_svc_for_func, get_features_merged)
-experiment_runner(run_sgd_for_func, get_features_merged)
-experiment_runner(run_decision_tree_for_func, get_features_merged)
-experiment_runner(run_random_forest_for_func, get_features_merged)
-experiment_runner(run_k_means_for_func, get_features_merged)
-experiment_runner(run_svc_for_func, get_features_tf_idf0)
+# experiment_runner(run_svc_for_func, get_features_as_freq_dist)
+# experiment_runner(run_svc_for_func, get_features_as_binary_freq_dist)
+# experiment_runner(run_svc_for_func, get_features_merged)
+# experiment_runner(run_sgd_for_func, get_features_merged)
+# experiment_runner(run_decision_tree_for_func, get_features_merged)
+# experiment_runner(run_random_forest_for_func, get_features_merged)
+# experiment_runner(run_k_means_for_func, get_features_merged)
+# experiment_runner(run_svc_for_func, get_features_tf_idf0)
+# experiment_runner(run_mlp_for_func, get_features_as_binary_freq_dist)
+experiment_runner(run_mlp_for_func, get_features_tf_idf0)
 
