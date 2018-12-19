@@ -5,10 +5,7 @@ with catch_warnings():
     import imp
 ############
 
-import numpy as np
 from TurkishStemmer import TurkishStemmer 
-import numpy as np
-import matplotlib.pyplot as plt
 from matplotlib import style
 style.use("ggplot")
 from sklearn.svm import LinearSVC
@@ -17,9 +14,13 @@ from sklearn import preprocessing, tree
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import KMeans
 from sklearn.neural_network import MLPClassifier
+from sklearn.model_selection import KFold
+
 import time
 import math
 import random
+import numpy as np
+import matplotlib.pyplot as plt
 
 test_data_file_name = 'test_tweets.txt'
 train_data_file_name = 'train_tweets.txt'
@@ -172,51 +173,61 @@ def get_cleaned_docs_from_file(file_name):
 
   return cleaned_docs, np.array(list(datas.values()))
 
-def model_runner(clf, feature_generator_func):
+def model_runner(clf, feature_generator_func, kfold = False):
   cleaned_docs, y = get_cleaned_docs_from_file(train_data_file_name)
   cleaned_docs2, y2 = get_cleaned_docs_from_file(test_data_file_name)
   corpus = get_corpus(cleaned_docs + cleaned_docs2)
   features = feature_generator_func(cleaned_docs, corpus)
-  features2 = feature_generator_func(cleaned_docs2, corpus)
-  clf.fit(features, y)
-  predictions = clf.predict(features2)
-  succ = sum(predictions==y2) / len(predictions)
-  print(succ)
-  return succ
+  if kfold:
+    kf = KFold(n_splits=10)
+    succ = []
+    for train_index, test_index in kf.split(cleaned_docs):
+      clf.fit(features[train_index], y[train_index])
+      predictions = clf.predict(features[test_index])
+      succ.append(sum(predictions==y[test_index]) / len(predictions))
+    print(succ)
+    return succ
+  else:
+    features2 = feature_generator_func(cleaned_docs2, corpus)
+    clf.fit(features, y)
+    predictions = clf.predict(features2)
+    succ = sum(predictions==y2) / len(predictions)
+    print(succ)
+    return succ
 
 # %%time
 # generates classifier and call model runner with feature generator function
-def run_svc_for_func(feature_generator_func):
+def run_svc_for_func(feature_generator_func, kfold = False):
   clf = LinearSVC(random_state=0, tol=1e-5)
-  model_runner(clf, feature_generator_func)
+  model_runner(clf, feature_generator_func, kfold)
 
-def run_sgd_for_func(feature_generator_func):
+def run_sgd_for_func(feature_generator_func, kfold = False):
   clf = SGDClassifier(loss="hinge", penalty="l2", max_iter=5)
-  model_runner(clf, feature_generator_func)
+  model_runner(clf, feature_generator_func, kfold)
 
-def run_decision_tree_for_func(feature_generator_func):
+def run_decision_tree_for_func(feature_generator_func, kfold = False):
   clf = tree.DecisionTreeClassifier()
-  model_runner(clf, feature_generator_func)
+  model_runner(clf, feature_generator_func, kfold)
 
-def run_random_forest_for_func(feature_generator_func):
+def run_random_forest_for_func(feature_generator_func, kfold = False):
   clf = RandomForestClassifier(n_estimators=10)
-  model_runner(clf, feature_generator_func)
+  model_runner(clf, feature_generator_func, kfold)
 
-def run_k_means_for_func(feature_generator_func):
+def run_k_means_for_func(feature_generator_func, kfold = False):
   clf = KMeans(init='k-means++', n_clusters=3, n_init=10)
-  model_runner(clf, feature_generator_func)
+  model_runner(clf, feature_generator_func, kfold)
 
-def run_mlp_for_func(feature_generator_func):
+def run_mlp_for_func(feature_generator_func, kfold = False):
   clf = clf = MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(5,), random_state=1)
-  model_runner(clf, feature_generator_func)
+  model_runner(clf, feature_generator_func, kfold)
 
-def experiment_runner(model_func, feature_generator_func):
+def experiment_runner(model_func, feature_generator_func, kfold = False):
   start = time.time()
-  model_func(feature_generator_func)
+  model_func(feature_generator_func, kfold)
   end = time.time()
   print( 'executed in ', end - start, ' secs')
 
-# experiment_runner(run_svc_for_func, get_features_as_freq_dist)
+experiment_runner(run_svc_for_func, get_features_as_freq_dist, True)
 # experiment_runner(run_svc_for_func, get_features_as_binary_freq_dist)
 # experiment_runner(run_svc_for_func, get_features_merged)
 # experiment_runner(run_sgd_for_func, get_features_merged)
@@ -225,5 +236,5 @@ def experiment_runner(model_func, feature_generator_func):
 # experiment_runner(run_k_means_for_func, get_features_merged)
 # experiment_runner(run_svc_for_func, get_features_tf_idf0)
 # experiment_runner(run_mlp_for_func, get_features_as_binary_freq_dist)
-experiment_runner(run_mlp_for_func, get_features_tf_idf0)
+# experiment_runner(run_mlp_for_func, get_features_tf_idf0)
 
