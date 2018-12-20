@@ -1,4 +1,9 @@
 # Ignore DeprecationWarning caused by imp module
+from warnings import catch_warnings, filterwarnings
+with catch_warnings():
+    filterwarnings("ignore", category=DeprecationWarning)
+    import imp
+    
 from matplotlib import style
 from TurkishStemmer import TurkishStemmer
 from sklearn.svm import LinearSVC
@@ -8,15 +13,12 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import KMeans
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import KFold
+from scipy import stats
 import time
 import math
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-from warnings import catch_warnings, filterwarnings
-with catch_warnings():
-    filterwarnings("ignore", category=DeprecationWarning)
-    import imp
 
 
 style.use("ggplot")
@@ -206,14 +208,14 @@ def model_runner(clf, feature_generator_func, kfold=False):
             clf.fit(features[train_index], y[train_index])
             predictions = clf.predict(features[test_index])
             succ.append(sum(predictions == y[test_index]) / len(predictions))
-        print(succ)
+        # print(succ)
         return succ
     else:
         features2 = feature_generator_func(cleaned_docs2, corpus)
         clf.fit(features, y)
         predictions = clf.predict(features2)
         succ = sum(predictions == y2) / len(predictions)
-        print(succ)
+        # print(succ)
         return succ
 
 
@@ -222,44 +224,65 @@ def run_svc_for_func(feature_generator_func, kfold=False):
     generates classifier and call model runner with feature generator function
     """
     clf = LinearSVC(random_state=0, tol=1e-5)
-    model_runner(clf, feature_generator_func, kfold)
+    return model_runner(clf, feature_generator_func, kfold)
 
 
 def run_sgd_for_func(feature_generator_func, kfold=False):
     clf = SGDClassifier(loss="hinge", penalty="l2", max_iter=5)
-    model_runner(clf, feature_generator_func, kfold)
+    return model_runner(clf, feature_generator_func, kfold)
 
 
 def run_decision_tree_for_func(feature_generator_func, kfold=False):
     clf = tree.DecisionTreeClassifier()
-    model_runner(clf, feature_generator_func, kfold)
+    return model_runner(clf, feature_generator_func, kfold)
 
 
 def run_random_forest_for_func(feature_generator_func, kfold=False):
     clf = RandomForestClassifier(n_estimators=10)
-    model_runner(clf, feature_generator_func, kfold)
+    return model_runner(clf, feature_generator_func, kfold)
 
 
 def run_k_means_for_func(feature_generator_func, kfold=False):
     clf = KMeans(init='k-means++', n_clusters=3, n_init=10)
-    model_runner(clf, feature_generator_func, kfold)
+    return model_runner(clf, feature_generator_func, kfold)
 
 
 def run_mlp_for_func(feature_generator_func, kfold=False):
     clf = clf = MLPClassifier(
         solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(5,), random_state=1)
-    model_runner(clf, feature_generator_func, kfold)
+    return model_runner(clf, feature_generator_func, kfold)
 
 
 def experiment_runner(model_func, feature_generator_func, kfold=False):
     start = time.time()
-    model_func(feature_generator_func, kfold)
+    accuracies = model_func(feature_generator_func, kfold)
     end = time.time()
     print('executed in ', end - start, ' secs')
+    return accuracies
 
 
-experiment_runner(run_svc_for_func, get_features_as_freq_dist, True)
-# experiment_runner(run_svc_for_func, get_features_as_binary_freq_dist)
+def statistically_different(data1, data2, alpha=0.05):
+    """
+    alpha is the confidence level. It is initially 0.05 which means %95 confidence. 
+    returns True if data1 and data1 statistically different
+    """
+    t_value, p_value = stats.ttest_rel(data1, data2)
+    crititcal_t_value = stats.t.ppf(1-(alpha/2), len(data1))
+    print("ttest paramters:", t_value, p_value, crititcal_t_value)
+
+    if t_value > crititcal_t_value:
+        return True
+
+    return False
+
+
+acc_list1 = experiment_runner(
+    run_svc_for_func, get_features_as_freq_dist, True)
+print("SVC and Freq Features", acc_list1)
+acc_list2 = experiment_runner(
+    run_svc_for_func, get_features_as_binary_freq_dist, True)
+print("SVC and Binary Features", acc_list2)
+print("Statistically different:", statistically_different(acc_list2, acc_list1))
 # experiment_runner(run_svc_for_func, get_features_merged)
 # experiment_runner(run_sgd_for_func, get_features_merged)
 # experiment_runner(run_decision_tree_for_func, get_features_merged)
