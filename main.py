@@ -3,7 +3,7 @@ from warnings import catch_warnings, filterwarnings
 with catch_warnings():
     filterwarnings("ignore", category=DeprecationWarning)
     import imp
-    
+
 from matplotlib import style
 from TurkishStemmer import TurkishStemmer
 from sklearn.svm import LinearSVC
@@ -19,7 +19,6 @@ import math
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-
 
 style.use("ggplot")
 
@@ -142,7 +141,7 @@ def get_features_tf_idf0(docs, corpus):
             else:
                 d[word] = 1
         for word in doc:
-            l[i, corpus[word]] = d[word] * math.log2(N/idf_dict[word])
+            l[i, corpus[word]] = d[word] * math.log2(N / idf_dict[word])
             # l[i, corpus[word]] = 1 + math.log2(d[word])
             # l[i, corpus[word]] = (1 + math.log2(d[word])) * math.log2(N/idf_dict[word])
     return l
@@ -248,8 +247,7 @@ def run_k_means_for_func(feature_generator_func, kfold=False):
 
 
 def run_mlp_for_func(feature_generator_func, kfold=False):
-    clf = clf = MLPClassifier(
-        solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(5,), random_state=1)
+    clf = clf = MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(5, ), random_state=1)
     return model_runner(clf, feature_generator_func, kfold)
 
 
@@ -267,7 +265,7 @@ def statistically_different(data1, data2, alpha=0.05):
     returns True if data1 and data1 statistically different
     """
     t_value, p_value = stats.ttest_rel(data1, data2)
-    crititcal_t_value = stats.t.ppf(1-(alpha/2), len(data1))
+    crititcal_t_value = stats.t.ppf(1 - (alpha / 2), len(data1))
     print("ttest paramters:", t_value, p_value, crititcal_t_value)
 
     if t_value > crititcal_t_value:
@@ -276,18 +274,41 @@ def statistically_different(data1, data2, alpha=0.05):
     return False
 
 
-acc_list1 = experiment_runner(
-    run_svc_for_func, get_features_as_freq_dist, True)
-print("SVC and Freq Features", acc_list1)
-acc_list2 = experiment_runner(
-    run_svc_for_func, get_features_as_binary_freq_dist, True)
-print("SVC and Binary Features", acc_list2)
-print("Statistically different:", statistically_different(acc_list2, acc_list1))
-# experiment_runner(run_svc_for_func, get_features_merged)
-# experiment_runner(run_sgd_for_func, get_features_merged)
+def dump_result(filename, result_list):
+    """
+    writes each item to a line
+    overwrites old file
+    """
+    text = "\n".join(str(x) for x in result_list)
+    with open(".\\results\\" + filename, "w") as f:
+        f.write(text)
+
+
+# SVC
+acc_list1 = experiment_runner(run_svc_for_func, get_features_as_freq_dist, True)
+dump_result("SVC_freq_features.txt", acc_list1)
+
+acc_list2 = experiment_runner(run_svc_for_func, get_features_as_binary_freq_dist, True)
+dump_result("SVC_binary_features.txt", acc_list2)
+
+acc_list3 = experiment_runner(run_svc_for_func, get_features_merged, True)
+dump_result("SVC_merged_features.txt", acc_list3)
+
+# SGD
+acc_list4 = experiment_runner(run_sgd_for_func, get_features_as_freq_dist, True)
+dump_result("SGD_freq_features.txt", acc_list4)
+
+acc_list5 = experiment_runner(run_sgd_for_func, get_features_as_binary_freq_dist, True)
+dump_result("SGD_binary_features.txt", acc_list5)
+
+acc_list6 = experiment_runner(run_sgd_for_func, get_features_merged, True)
+dump_result("SGD_merged_features.txt", acc_list6)
+
 # experiment_runner(run_decision_tree_for_func, get_features_merged)
 # experiment_runner(run_random_forest_for_func, get_features_merged)
 # experiment_runner(run_k_means_for_func, get_features_merged)
 # experiment_runner(run_svc_for_func, get_features_tf_idf0)
 # experiment_runner(run_mlp_for_func, get_features_as_binary_freq_dist)
 # experiment_runner(run_mlp_for_func, get_features_tf_idf0)
+
+# print("Statistically different:", statistically_different(acc_list2, acc_list1))
