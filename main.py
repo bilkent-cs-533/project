@@ -255,7 +255,7 @@ def experiment_runner(model_func, feature_generator_func, kfold=False):
     start = time.time()
     accuracies = model_func(feature_generator_func, kfold)
     end = time.time()
-    print('executed in ', end - start, ' secs')
+    print('Executed in ', end - start, ' secs')
     return accuracies
 
 
@@ -266,7 +266,7 @@ def statistically_different(data1, data2, alpha=0.05):
     """
     t_value, p_value = stats.ttest_rel(data1, data2)
     crititcal_t_value = stats.t.ppf(1 - (alpha / 2), len(data1))
-    print("ttest paramters:", t_value, p_value, crititcal_t_value)
+    print("ttest parameters:", t_value, p_value, crititcal_t_value)
 
     if t_value > crititcal_t_value:
         return True
@@ -283,26 +283,48 @@ def dump_result(filename, result_list):
     with open(".\\results\\" + filename, "w") as f:
         f.write(text)
 
+method_dict = {
+    "SVC": run_svc_for_func,
+    "SGD": run_sgd_for_func,
+    "DT": run_decision_tree_for_func,
+    "RF": run_decision_tree_for_func,
+    "K_MEANS": run_k_means_for_func,
+    "MLP": run_mlp_for_func
+}
 
-# SVC
-acc_list1 = experiment_runner(run_svc_for_func, get_features_as_freq_dist, True)
-dump_result("SVC_freq_features.txt", acc_list1)
+# generating features once 
+feature_dict = {
+    "binary_features": get_features_as_binary_freq_dist,
+    "freq_features": get_features_as_freq_dist,
+    "merged_features": get_features_merged,
+}
 
-acc_list2 = experiment_runner(run_svc_for_func, get_features_as_binary_freq_dist, True)
-dump_result("SVC_binary_features.txt", acc_list2)
+for method_name, model_func in method_dict.items():
+    for feature_type, feature_generator_func in feature_dict.items():
+        print("Running", method_name, feature_type)
+        acc_list = experiment_runner(model_func, feature_generator_func, True)
+        result_filename = method_name + "_" + feature_type + ".txt"
+        dump_result(result_filename, acc_list)
 
-acc_list3 = experiment_runner(run_svc_for_func, get_features_merged, True)
-dump_result("SVC_merged_features.txt", acc_list3)
+# # SVC
+# acc_list1 = experiment_runner(run_svc_for_func, get_features_as_freq_dist, True)
+# dump_result("SVC_freq_features.txt", acc_list1)
 
-# SGD
-acc_list4 = experiment_runner(run_sgd_for_func, get_features_as_freq_dist, True)
-dump_result("SGD_freq_features.txt", acc_list4)
+# acc_list2 = experiment_runner(run_svc_for_func, get_features_as_binary_freq_dist, True)
+# dump_result("SVC_binary_features.txt", acc_list2)
 
-acc_list5 = experiment_runner(run_sgd_for_func, get_features_as_binary_freq_dist, True)
-dump_result("SGD_binary_features.txt", acc_list5)
+# acc_list3 = experiment_runner(run_svc_for_func, get_features_merged, True)
+# dump_result("SVC_merged_features.txt", acc_list3)
 
-acc_list6 = experiment_runner(run_sgd_for_func, get_features_merged, True)
-dump_result("SGD_merged_features.txt", acc_list6)
+# # SGD
+# acc_list4 = experiment_runner(run_sgd_for_func, get_features_as_freq_dist, True)
+# dump_result("SGD_freq_features.txt", acc_list4)
+
+# acc_list5 = experiment_runner(run_sgd_for_func, get_features_as_binary_freq_dist, True)
+# dump_result("SGD_binary_features.txt", acc_list5)
+
+# acc_list6 = experiment_runner(run_sgd_for_func, get_features_merged, True)
+# dump_result("SGD_merged_features.txt", acc_list6)
 
 # experiment_runner(run_decision_tree_for_func, get_features_merged)
 # experiment_runner(run_random_forest_for_func, get_features_merged)
