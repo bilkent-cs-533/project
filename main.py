@@ -1,32 +1,36 @@
-import matplotlib.pyplot as plt
-import numpy as np
-import random
-import math
-import time
-from warnings import catch_warnings, filterwarnings
-from sklearn.model_selection import KFold
-from sklearn.neural_network import MLPClassifier
-from sklearn.cluster import KMeans
-from sklearn.ensemble import RandomForestClassifier
-from sklearn import preprocessing, tree
-from sklearn.linear_model import SGDClassifier
-from sklearn.svm import LinearSVC
-from TurkishStemmer import TurkishStemmer
-from matplotlib import style
-
-style.use("ggplot")
 # Ignore DeprecationWarning caused by imp module
+from matplotlib import style
+from TurkishStemmer import TurkishStemmer
+from sklearn.svm import LinearSVC
+from sklearn.linear_model import SGDClassifier
+from sklearn import preprocessing, tree
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.cluster import KMeans
+from sklearn.neural_network import MLPClassifier
+from sklearn.model_selection import KFold
+import time
+import math
+import random
+import numpy as np
+import matplotlib.pyplot as plt
+from warnings import catch_warnings, filterwarnings
 with catch_warnings():
     filterwarnings("ignore", category=DeprecationWarning)
     import imp
-############
+
+
+style.use("ggplot")
+
 test_data_file_name = 'test_tweets.txt'
 train_data_file_name = 'train_tweets.txt'
 stop_words_file_name = 'stop_words_tr_147.txt'
 
-# input text data file name
-# output text to class dictionary
+
 def get_data_class_pairs(file_name):
+    """ 
+    input text data file name
+    output text to class dictionary
+    """
     data2class = dict()
     with open(file_name, 'r', encoding='utf-8') as f:
         lines = f.readlines()
@@ -36,8 +40,11 @@ def get_data_class_pairs(file_name):
             data2class[arr[0]] = arr[1]
     return data2class
 
-# docs is list of list of words
+
 def get_corpus(docs):
+    """
+    docs is list of list of words
+    """
     d = dict()
     for doc in docs:
         for w in doc:
@@ -50,8 +57,11 @@ def get_corpus(docs):
 
     return d
 
-# returns a dictionary of word to count of document which contains the word
+
 def get_inverse_doc_freq(docs, corpus):
+    """
+    returns a dictionary of word to count of document which contains the word
+    """
     d = dict()
     for word in corpus:
         i = 0
@@ -77,9 +87,12 @@ def turkish_stemmer_vectorize(words):
     stemmer = TurkishStemmer()
     return stemmer.stem(words)
 
-# docs is list of list of words
-# corpus is dictionary of word to index
+
 def get_features_as_freq_dist(docs, corpus):
+    """
+    docs is list of list of words
+    corpus is dictionary of word to index
+    """
     l = np.zeros((len(docs), len(corpus)))
     for i, doc in enumerate(docs):
         d = dict()
@@ -102,9 +115,11 @@ def get_features_merged(docs, corpus):
 
     return np.concatenate((f1, f2), axis=1)
 
-# docs is list of list of words
-# docs is list of list of words
+
 def get_features_as_binary_freq_dist(docs, corpus):
+    """
+    docs is list of list of words
+    """
     l = np.zeros((len(docs), len(corpus)))
     for i, doc in enumerate(docs):
         for word in doc:
@@ -201,8 +216,11 @@ def model_runner(clf, feature_generator_func, kfold=False):
         print(succ)
         return succ
 
-# generates classifier and call model runner with feature generator function
+
 def run_svc_for_func(feature_generator_func, kfold=False):
+    """
+    generates classifier and call model runner with feature generator function
+    """
     clf = LinearSVC(random_state=0, tol=1e-5)
     model_runner(clf, feature_generator_func, kfold)
 
