@@ -196,7 +196,7 @@ def get_cleaned_docs_from_file(file_name):
     return cleaned_docs, np.array(list(datas.values()))
 
 
-def model_runner(clf, features, kfold=False):
+def model_runner(clf, features, features2, kfold=False):
     global cleaned_docs, y, cleaned_docs2, y2, corpus
     
     if kfold:
@@ -209,50 +209,49 @@ def model_runner(clf, features, kfold=False):
         # print(succ)
         return succ
     else:
-        features2 = feature_generator_func(cleaned_docs2, corpus)
         clf.fit(features, y)
         predictions = clf.predict(features2)
         succ = sum(predictions == y2) / len(predictions)
         # print(succ)
-        return succ
+        return [succ]
 
 
-def run_svc_for_func(features, kfold=False):
+def run_svc_for_func(train_features, test_features, kfold=False):
     """
     generates classifier and call model runner with feature generator function
     """
     clf = LinearSVC(random_state=0, tol=1e-5)
-    return model_runner(clf, features, kfold)
+    return model_runner(clf, train_features, test_features, kfold)
 
 
-def run_sgd_for_func(features, kfold=False):
+def run_sgd_for_func(train_features, test_features, kfold=False):
     clf = SGDClassifier(loss="hinge", penalty="l2", max_iter=5)
-    return model_runner(clf, features, kfold)
+    return model_runner(clf, train_features, test_features, kfold)
 
 
-def run_decision_tree_for_func(features, kfold=False):
+def run_decision_tree_for_func(train_features, test_features, kfold=False):
     clf = tree.DecisionTreeClassifier()
-    return model_runner(clf, features, kfold)
+    return model_runner(clf, train_features, test_features, kfold)
 
 
-def run_random_forest_for_func(features, kfold=False):
+def run_random_forest_for_func(train_features, test_features, kfold=False):
     clf = RandomForestClassifier(n_estimators=10)
-    return model_runner(clf, features, kfold)
+    return model_runner(clf, train_features, test_features, kfold)
 
 
-def run_k_means_for_func(features, kfold=False):
+def run_k_means_for_func(train_features, test_features, kfold=False):
     clf = KMeans(init='k-means++', n_clusters=3, n_init=10)
-    return model_runner(clf, features, kfold)
+    return model_runner(clf, train_features, test_features, kfold)
 
 
-def run_mlp_for_func(features, kfold=False):
+def run_mlp_for_func(train_features, test_features, kfold=False):
     clf = clf = MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(5, ), random_state=1)
-    return model_runner(clf, features, kfold)
+    return model_runner(clf, train_features, test_features, kfold)
 
 
-def experiment_runner(model_func, features, kfold=False):
+def experiment_runner(model_func, train_features, test_features=None, kfold=False):
     start = time.time()
-    accuracies = model_func(features, kfold)
+    accuracies = model_func(train_features, test_features, kfold)
     end = time.time()
     print('Executed in ', end - start, ' secs')
     return accuracies
@@ -282,6 +281,39 @@ def dump_result(filename, result_list):
     with open(".\\results\\" + filename, "w") as f:
         f.write(text)
 
+def kfold_experiment():
+    global method_dict, feature_dict, cleaned_docs, corpus
+    # 10-Fold experiments for all models
+    for feature_type, feature_generator_func in feature_dict.items():
+        # generating features once 
+        print("Extracting", feature_type)
+        start = time.time()
+        features = feature_generator_func(cleaned_docs, corpus)
+        end = time.time()
+        print('Executed in ', end - start, ' secs')
+        print(feature_type, " size :", getsizeof(features)/(1024**2), "MB")
+
+        for method_name, model_func in method_dict.items():
+            print("Running", method_name, "with",  feature_type)
+            acc_list = experiment_runner(model_func, features, kfold = True)
+            result_filename = method_name + "_" + feature_type + ".txt"
+            dump_result(result_filename, acc_list)
+
+def test_experiment(model_func, feature_generator_func, dump_filename="test_dump.txt"):
+    global cleaned_docs, cleaned_docs2, corpus
+    print("Test is starting.")
+    
+    print("Extracting train and test features...")
+    start = time.time()
+    train_features = feature_generator_func(cleaned_docs, corpus)
+    test_features = feature_generator_func(cleaned_docs2, corpus)
+    end = time.time()
+    print('Executed in ', end - start, ' secs')
+    
+    print("Running model...")
+    acc_list = experiment_runner(model_func, train_features, test_features)
+    dump_result(dump_filename, acc_list)
+
 method_dict = {
     "SVC": run_svc_for_func,
     "SGD": run_sgd_for_func,
@@ -306,46 +338,7 @@ feature_dict = {
     "merged_features": get_features_merged
 }
 
-for feature_type, feature_generator_func in feature_dict.items():
-    # generating features once 
-    print("Extracting", feature_type)
-    start = time.time()
-    features = feature_generator_func(cleaned_docs, corpus)
-    end = time.time()
-    print('Executed in ', end - start, ' secs')
-    print(feature_type, " size :", getsizeof(features)/(1024**2), "MB")
-
-    for method_name, model_func in method_dict.items():
-        print("Running", method_name, "with",  feature_type)
-        acc_list = experiment_runner(model_func, features, True)
-        result_filename = method_name + "_" + feature_type + ".txt"
-        dump_result(result_filename, acc_list)
-
-# # SVC
-# acc_list1 = experiment_runner(run_svc_for_func, get_features_as_freq_dist, True)
-# dump_result("SVC_freq_features.txt", acc_list1)
-
-# acc_list2 = experiment_runner(run_svc_for_func, get_features_as_binary_freq_dist, True)
-# dump_result("SVC_binary_features.txt", acc_list2)
-
-# acc_list3 = experiment_runner(run_svc_for_func, get_features_merged, True)
-# dump_result("SVC_merged_features.txt", acc_list3)
-
-# # SGD
-# acc_list4 = experiment_runner(run_sgd_for_func, get_features_as_freq_dist, True)
-# dump_result("SGD_freq_features.txt", acc_list4)
-
-# acc_list5 = experiment_runner(run_sgd_for_func, get_features_as_binary_freq_dist, True)
-# dump_result("SGD_binary_features.txt", acc_list5)
-
-# acc_list6 = experiment_runner(run_sgd_for_func, get_features_merged, True)
-# dump_result("SGD_merged_features.txt", acc_list6)
-
-# experiment_runner(run_decision_tree_for_func, get_features_merged)
-# experiment_runner(run_random_forest_for_func, get_features_merged)
-# experiment_runner(run_k_means_for_func, get_features_merged)
-# experiment_runner(run_svc_for_func, get_features_tf_idf0)
-# experiment_runner(run_mlp_for_func, get_features_as_binary_freq_dist)
-# experiment_runner(run_mlp_for_func, get_features_tf_idf0)
+# kfold_experiment()
+test_experiment(run_svc_for_func, get_features_as_binary_freq_dist, "SVC_binary_test_dump.txt")
 
 # print("Statistically different:", statistically_different(acc_list2, acc_list1))
