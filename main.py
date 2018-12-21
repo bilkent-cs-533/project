@@ -94,7 +94,7 @@ def get_features_as_freq_dist(docs, corpus):
     docs is list of list of words
     corpus is dictionary of word to index
     """
-    l = np.zeros((len(docs), len(corpus)))
+    l = np.zeros((len(docs), len(corpus)), dtype=np.uint8)
     for i, doc in enumerate(docs):
         d = dict()
         for word in doc:
@@ -110,9 +110,9 @@ def get_features_as_freq_dist(docs, corpus):
 
 def get_features_merged(docs, corpus):
     f1 = get_features_as_freq_dist(docs, corpus)
-    f1 = preprocessing.normalize(f1)
+    f1 = preprocessing.normalize(f1).astype(np.float16)
     f2 = get_features_as_binary_freq_dist(docs, corpus)
-    f2 = preprocessing.normalize(f2)
+    f2 = preprocessing.normalize(f2).astype(np.float16)
 
     return np.concatenate((f1, f2), axis=1)
 
@@ -121,7 +121,7 @@ def get_features_as_binary_freq_dist(docs, corpus):
     """
     docs is list of list of words
     """
-    l = np.zeros((len(docs), len(corpus)))
+    l = np.zeros((len(docs), len(corpus)), dtype=np.uint8)
     for i, doc in enumerate(docs):
         for word in doc:
             l[i, corpus[word]] = 1
@@ -287,7 +287,7 @@ method_dict = {
     "SVC": run_svc_for_func,
     "SGD": run_sgd_for_func,
     "DT": run_decision_tree_for_func,
-    "RF": run_decision_tree_for_func,
+    "RF": run_random_forest_for_func,
     "K_MEANS": run_k_means_for_func,
     "MLP": run_mlp_for_func
 }
