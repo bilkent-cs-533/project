@@ -4,6 +4,7 @@ with catch_warnings():
     filterwarnings("ignore", category=DeprecationWarning)
     import imp
 
+from sys import getsizeof
 from matplotlib import style
 from TurkishStemmer import TurkishStemmer
 from sklearn.svm import LinearSVC
@@ -108,13 +109,13 @@ def get_features_as_freq_dist(docs, corpus):
     return l
 
 
-def get_features_merged(docs, corpus):
-    f1 = get_features_as_freq_dist(docs, corpus)
-    f1 = preprocessing.normalize(f1).astype(np.float16)
-    f2 = get_features_as_binary_freq_dist(docs, corpus)
-    f2 = preprocessing.normalize(f2).astype(np.float16)
+def get_features_merged(cleaned_docs, corpus):
+    binary_features = get_features_as_binary_freq_dist(cleaned_docs, corpus)
+    binary_features = preprocessing.normalize(binary_features).astype(np.float16)
+    freq_features = get_features_as_freq_dist(cleaned_docs, corpus)
+    freq_features = preprocessing.normalize(freq_features).astype(np.float16)
 
-    return np.concatenate((f1, f2), axis=1)
+    return np.concatenate((binary_features, freq_features), axis=1)
 
 
 def get_features_as_binary_freq_dist(docs, corpus):
@@ -195,11 +196,9 @@ def get_cleaned_docs_from_file(file_name):
     return cleaned_docs, np.array(list(datas.values()))
 
 
-def model_runner(clf, feature_generator_func, kfold=False):
-    cleaned_docs, y = get_cleaned_docs_from_file(train_data_file_name)
-    cleaned_docs2, y2 = get_cleaned_docs_from_file(test_data_file_name)
-    corpus = get_corpus(cleaned_docs + cleaned_docs2)
-    features = feature_generator_func(cleaned_docs, corpus)
+def model_runner(clf, features, kfold=False):
+    global cleaned_docs, y, cleaned_docs2, y2, corpus
+    
     if kfold:
         kf = KFold(n_splits=10)
         succ = []
@@ -218,42 +217,42 @@ def model_runner(clf, feature_generator_func, kfold=False):
         return succ
 
 
-def run_svc_for_func(feature_generator_func, kfold=False):
+def run_svc_for_func(features, kfold=False):
     """
     generates classifier and call model runner with feature generator function
     """
     clf = LinearSVC(random_state=0, tol=1e-5)
-    return model_runner(clf, feature_generator_func, kfold)
+    return model_runner(clf, features, kfold)
 
 
-def run_sgd_for_func(feature_generator_func, kfold=False):
+def run_sgd_for_func(features, kfold=False):
     clf = SGDClassifier(loss="hinge", penalty="l2", max_iter=5)
-    return model_runner(clf, feature_generator_func, kfold)
+    return model_runner(clf, features, kfold)
 
 
-def run_decision_tree_for_func(feature_generator_func, kfold=False):
+def run_decision_tree_for_func(features, kfold=False):
     clf = tree.DecisionTreeClassifier()
-    return model_runner(clf, feature_generator_func, kfold)
+    return model_runner(clf, features, kfold)
 
 
-def run_random_forest_for_func(feature_generator_func, kfold=False):
+def run_random_forest_for_func(features, kfold=False):
     clf = RandomForestClassifier(n_estimators=10)
-    return model_runner(clf, feature_generator_func, kfold)
+    return model_runner(clf, features, kfold)
 
 
-def run_k_means_for_func(feature_generator_func, kfold=False):
+def run_k_means_for_func(features, kfold=False):
     clf = KMeans(init='k-means++', n_clusters=3, n_init=10)
-    return model_runner(clf, feature_generator_func, kfold)
+    return model_runner(clf, features, kfold)
 
 
-def run_mlp_for_func(feature_generator_func, kfold=False):
+def run_mlp_for_func(features, kfold=False):
     clf = clf = MLPClassifier(solver='lbfgs', alpha=1e-5, hidden_layer_sizes=(5, ), random_state=1)
-    return model_runner(clf, feature_generator_func, kfold)
+    return model_runner(clf, features, kfold)
 
 
-def experiment_runner(model_func, feature_generator_func, kfold=False):
+def experiment_runner(model_func, features, kfold=False):
     start = time.time()
-    accuracies = model_func(feature_generator_func, kfold)
+    accuracies = model_func(features, kfold)
     end = time.time()
     print('Executed in ', end - start, ' secs')
     return accuracies
@@ -291,18 +290,34 @@ method_dict = {
     "K_MEANS": run_k_means_for_func,
     "MLP": run_mlp_for_func
 }
+print("Preprocessing...")
+start = time.time()
 
-# generating features once 
+cleaned_docs, y = get_cleaned_docs_from_file(train_data_file_name)
+cleaned_docs2, y2 = get_cleaned_docs_from_file(test_data_file_name)
+corpus = get_corpus(cleaned_docs + cleaned_docs2)
+
+end = time.time()
+print('Executed in ', end - start, ' secs')
+
 feature_dict = {
     "binary_features": get_features_as_binary_freq_dist,
     "freq_features": get_features_as_freq_dist,
-    "merged_features": get_features_merged,
+    "merged_features": get_features_merged
 }
 
-for method_name, model_func in method_dict.items():
-    for feature_type, feature_generator_func in feature_dict.items():
-        print("Running", method_name, feature_type)
-        acc_list = experiment_runner(model_func, feature_generator_func, True)
+for feature_type, feature_generator_func in feature_dict.items():
+    # generating features once 
+    print("Extracting", feature_type)
+    start = time.time()
+    features = feature_generator_func(cleaned_docs, corpus)
+    end = time.time()
+    print('Executed in ', end - start, ' secs')
+    print(feature_type, " size :", getsizeof(features)/(1024**2), "MB")
+
+    for method_name, model_func in method_dict.items():
+        print("Running", method_name, "with",  feature_type)
+        acc_list = experiment_runner(model_func, features, True)
         result_filename = method_name + "_" + feature_type + ".txt"
         dump_result(result_filename, acc_list)
 
