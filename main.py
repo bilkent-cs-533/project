@@ -12,6 +12,7 @@ from sklearn.linear_model import SGDClassifier
 from sklearn import preprocessing, tree
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import KMeans
+from sklearn.cluster import AffinityPropagation
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import KFold
 from scipy import stats
@@ -20,6 +21,8 @@ import math
 import random
 import numpy as np
 import matplotlib.pyplot as plt
+import scipy.io as sio
+from simple_autoencoder import run_autoencoder, reduce_features
 
 style.use("ggplot")
 
@@ -313,6 +316,16 @@ def test_experiment(model_func, feature_generator_func, dump_filename="test_dump
     print("Running model...")
     acc_list = experiment_runner(model_func, train_features, test_features)
     dump_result(dump_filename, acc_list)
+
+def autoencoder(feature_generator_func):
+    """
+    autoencoder(get_features_as_binary_freq_dist)
+    new_features = reduce_features(train_features)
+    np.save("features.npy", new_features)
+    """
+    global cleaned_docs, corpus
+    train_features = feature_generator_func(cleaned_docs, corpus)
+    run_autoencoder(train_features)
 
 method_dict = {
     "SVC": run_svc_for_func,
