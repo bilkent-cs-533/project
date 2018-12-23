@@ -185,12 +185,12 @@ def get_features_as_freq_dist(docs, corpus, add_articial_features=False):
 
 def get_features_merged(cleaned_docs, corpus, add_artificial_features=False):
     binary_features = get_features_as_binary_freq_dist(cleaned_docs, corpus)
-    binary_features = preprocessing.normalize((binary_features))
+    binary_features = preprocessing.normalize((binary_features)).astype(np.float16)
     # scaler = StandardScaler()
     # scaler.fit(binary_features)
     # StandardScaler(copy=False, with_mean=True, with_std=True)
     freq_features = get_features_as_freq_dist(cleaned_docs, corpus)
-    freq_features = preprocessing.normalize((freq_features))
+    freq_features = preprocessing.normalize((freq_features)).astype(np.float16)
 
     if add_artificial_features:
         artificial_features = get_feature_last_char_exclamation(cleaned_docs)
