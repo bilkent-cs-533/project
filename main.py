@@ -12,7 +12,6 @@ from sklearn.linear_model import SGDClassifier
 from sklearn import preprocessing, tree
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.cluster import KMeans
-from sklearn.cluster import AffinityPropagation
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import KFold
 from scipy import stats
@@ -21,8 +20,9 @@ import math
 import random
 import numpy as np
 import matplotlib.pyplot as plt
-import scipy.io as sio
-from simple_autoencoder import run_autoencoder, reduce_features
+import re
+import scipy.sparse as sp 
+from sklearn.preprocessing import StandardScaler
 
 style.use("ggplot")
 
@@ -85,6 +85,32 @@ def remove_stop_words(stop_words_file_name, words):
     return [x for x in words if x not in stop_words]
 
 
+def get_char_gram_docs(docs, char_grams=[2]):
+    """
+    docs is list of list of words
+    get character based ngram docs
+    """
+    ngram_docs = []
+    for doc in docs:
+        ngram_doc = []
+        for word in doc:
+            word = re.sub(r'[0-9\.\,\?]', '', word)
+            for char_cnt in char_grams:
+                ngram_doc += [word[i:i + char_cnt] for i in range(len(word) - char_cnt + 1)]
+        ngram_docs.append(ngram_doc)
+    return ngram_docs
+
+
+# adds word grams to docs
+def get_word_gram_docs(docs, word_grams=[2]):
+  ngram_docs = []
+  for doc in docs:
+    ngram_doc = []
+    for word_count in word_grams:
+      ngram_doc += [' '.join(doc[i:i + word_count]) for i in range(len(doc) - word_count + 1)]
+    ngram_docs.append(ngram_doc)
+  return ngram_docs
+
 @np.vectorize
 def turkish_stemmer_vectorize(words):
     if len(words) == 0:
@@ -93,7 +119,52 @@ def turkish_stemmer_vectorize(words):
     return stemmer.stem(words)
 
 
-def get_features_as_freq_dist(docs, corpus):
+def f5_stemmer(words):
+    if len(words) == 0:
+        return []
+    return [w[:5] for w in words]
+
+
+def get_feature_num_of_words_all_caps(docs):
+    """
+    docs is list of list of words
+    x is feature matrix, np array
+    this method adds a column to feature matrix which count number of words all caps
+    """
+    feature_col = np.zeros((len(docs), 1), dtype=np.uint8)
+    for i,doc in enumerate(docs):
+        feature_col[i] = sum([word.isupper() for word in doc])
+    return feature_col
+
+def get_feature_last_char_exclamation(docs):
+    feature_col = np.zeros((len(docs), 1), dtype=np.uint8)
+    for i,doc in enumerate(docs):
+        feature_col[i] = sum([doc[-1].endswith('!')])
+    return feature_col
+
+def get_feature_num_of_elongated_words(docs):
+    feature_col = np.zeros((len(docs), 1), dtype=np.uint8)
+    regex = re.compile(r"(.)\1{3}")
+    for i,doc in enumerate(docs):
+        feature_col[i] = len([word for word in doc if regex.search(word)])
+    return feature_col
+
+def get_feature_pos_neg_word_count(docs):
+    pos_words = {'iyi': True, 'süper': True, 'super': True, 'güzel': True, 'guzel': True, 'harika': True, 
+    ';)': True, ':)': True, ':d': True, ':p': True, '=)': True }
+    neg_words = {'kötü': True, 'berbat': True, 'çirkin': True, 'cirkin': True, 'iğrenç': True, 'igrenc': True, 
+    ';(': True, ':(': True, '=(': True }
+    
+    feature_col = np.zeros((len(docs), 2), dtype=np.uint8)
+    for i,doc in enumerate(docs):
+        for pos_word in pos_words:
+            feature_col[i, 0] += len([word for word in doc if pos_word in word ])
+        for neg_word in neg_words:
+            feature_col[i, 1] += len([word for word in doc if neg_word in word ])
+    return feature_col
+
+
+def get_features_as_freq_dist(docs, corpus, add_articial_features=False):
     """
     docs is list of list of words
     corpus is dictionary of word to index
@@ -112,16 +183,25 @@ def get_features_as_freq_dist(docs, corpus):
     return l
 
 
-def get_features_merged(cleaned_docs, corpus):
+def get_features_merged(cleaned_docs, corpus, add_artificial_features=False):
     binary_features = get_features_as_binary_freq_dist(cleaned_docs, corpus)
-    binary_features = preprocessing.normalize(binary_features).astype(np.float16)
+    binary_features = preprocessing.normalize((binary_features))
+    # scaler = StandardScaler()
+    # scaler.fit(binary_features)
+    # StandardScaler(copy=False, with_mean=True, with_std=True)
     freq_features = get_features_as_freq_dist(cleaned_docs, corpus)
-    freq_features = preprocessing.normalize(freq_features).astype(np.float16)
+    freq_features = preprocessing.normalize((freq_features))
 
-    return np.concatenate((binary_features, freq_features), axis=1)
+    if add_artificial_features:
+        artificial_features = get_feature_last_char_exclamation(cleaned_docs)
+        artificial_features = preprocessing.normalize(artificial_features).astype(np.float16)
+        return np.concatenate((binary_features, freq_features, artificial_features), axis=1)
+    else:
+        return np.concatenate((binary_features, freq_features), axis=1)
+        # return sp.hstack((binary_features, freq_features), format='csr')
 
 
-def get_features_as_binary_freq_dist(docs, corpus):
+def get_features_as_binary_freq_dist(docs, corpus, add_articial_features=False):
     """
     docs is list of list of words
     """
@@ -186,16 +266,29 @@ def get_features_tf_idf2(docs, corpus):
     return l
 
 
-def get_cleaned_docs_from_file(file_name):
+def get_cleaned_docs_from_file(file_name, stemmer=0, char_grams=[], word_grams=[]):
     datas = get_data_class_pairs(file_name)
     raw_docs = []
     cleaned_docs = []
     for d in datas.keys():
         raw_docs.append(d.split())
+
+    word_docs = []
     for d in raw_docs:
         stop_words_removed = remove_stop_words(stop_words_file_name, d)
-        cleaned_docs.append(turkish_stemmer_vectorize(stop_words_removed))
+        word_docs.append(turkish_stemmer_vectorize(stop_words_removed))
+        if stemmer == 0:
+            cleaned_docs.append(turkish_stemmer_vectorize(stop_words_removed))
+        elif stemmer == 1:
+            cleaned_docs.append(f5_stemmer(stop_words_removed))
+        else:
+            cleaned_docs.append(stop_words_removed)
+    if len(word_grams) > 0:
+        cleaned_docs = get_char_gram_docs(cleaned_docs, char_grams)
 
+    if len(word_grams) > 0:
+        cleaned_docs = get_word_gram_docs(word_docs, word_grams)
+    
     return cleaned_docs, np.array(list(datas.values()))
 
 
@@ -212,8 +305,8 @@ def model_runner(clf, features, features2, kfold=False):
         # print(succ)
         return succ
     else:
-        clf.fit(features, y)
-        predictions = clf.predict(features2)
+        clf.fit(np.array(features), y)
+        predictions = clf.predict(np.array(features2))
         succ = sum(predictions == y2) / len(predictions)
         # print(succ)
         return [succ]
@@ -263,7 +356,7 @@ def experiment_runner(model_func, train_features, test_features=None, kfold=Fals
 def statistically_different(data1, data2, alpha=0.05):
     """
     alpha is the confidence level. It is initially 0.05 which means %95 confidence. 
-    returns True if data1 and data1 statistically different
+    returns True if data1 and data2 statistically different
     """
     t_value, p_value = stats.ttest_rel(data1, data2)
     crititcal_t_value = stats.t.ppf(1 - (alpha / 2), len(data1))
@@ -302,30 +395,20 @@ def kfold_experiment():
             result_filename = method_name + "_" + feature_type + ".txt"
             dump_result(result_filename, acc_list)
 
-def test_experiment(model_func, feature_generator_func, dump_filename="test_dump.txt"):
+def test_experiment(model_func, feature_generator_func, dump_filename="test_dump.txt", add_articial_features=False, kfold=False):
     global cleaned_docs, cleaned_docs2, corpus
     print("Test is starting.")
     
     print("Extracting train and test features...")
     start = time.time()
-    train_features = feature_generator_func(cleaned_docs, corpus)
-    test_features = feature_generator_func(cleaned_docs2, corpus)
+    train_features = feature_generator_func(cleaned_docs, corpus, add_articial_features)
+    test_features = feature_generator_func(cleaned_docs2, corpus, add_articial_features)
     end = time.time()
     print('Executed in ', end - start, ' secs')
     
     print("Running model...")
-    acc_list = experiment_runner(model_func, train_features, test_features)
+    acc_list = experiment_runner(model_func, train_features, test_features,kfold)
     dump_result(dump_filename, acc_list)
-
-def autoencoder(feature_generator_func):
-    """
-    autoencoder(get_features_as_binary_freq_dist)
-    new_features = reduce_features(train_features)
-    np.save("features.npy", new_features)
-    """
-    global cleaned_docs, corpus
-    train_features = feature_generator_func(cleaned_docs, corpus)
-    run_autoencoder(train_features)
 
 method_dict = {
     "SVC": run_svc_for_func,
@@ -338,8 +421,10 @@ method_dict = {
 print("Preprocessing...")
 start = time.time()
 
-cleaned_docs, y = get_cleaned_docs_from_file(train_data_file_name)
-cleaned_docs2, y2 = get_cleaned_docs_from_file(test_data_file_name)
+cleaned_docs, y = get_cleaned_docs_from_file(train_data_file_name, stemmer=0, char_grams=[], word_grams=[2])
+cleaned_docs2, y2 = get_cleaned_docs_from_file(test_data_file_name, stemmer=0, char_grams=[], word_grams=[2])
+# cleaned_docs, y = get_cleaned_docs_from_file(train_data_file_name)
+# cleaned_docs2, y2 = get_cleaned_docs_from_file(test_data_file_name)
 corpus = get_corpus(cleaned_docs + cleaned_docs2)
 
 end = time.time()
@@ -352,6 +437,21 @@ feature_dict = {
 }
 
 # kfold_experiment()
-test_experiment(run_svc_for_func, get_features_as_binary_freq_dist, "SVC_binary_test_dump.txt")
+# test_experiment(run_svc_for_func, get_features_as_binary_freq_dist, "SVC_binary_test_dump.txt")
+# test_experiment(run_svc_for_func, get_features_merged, "SVC_kfold_merged_features_2_3_4_char_grams_dump.txt", False, True)
+# test_experiment(run_svc_for_func, get_features_merged, "SVC_merged_features_2_3_char_grams_dump.txt")
+# test_experiment(run_svc_for_func, get_features_merged, "SVC_merged_features_2_3_char_grams_merged_doc_representations_dump.txt")
+# test_experiment(run_svc_for_func, get_features_merged, "SVC_merged_features_2_3_char_grams_last_char_exclamation_dump.txt", True)
+# test_experiment(run_svc_for_func, get_features_merged, "SVC_merged_features_2_3_char_grams_remove_num_dot_dump.txt", False)
+# test_experiment(run_svc_for_func, get_features_merged, "SVC_merged_features_2_3_char_grams_with_artifical_features_dump.txt", True)
+# test_experiment(run_svc_for_func, get_features_merged, "SVC_merged_features_dump.txt", False)
+# test_experiment(run_svc_for_func, get_features_merged, "SVC_merged_features_char_word_gram_doc_representation_dump.txt", False)
+test_experiment(run_svc_for_func, get_features_merged, "SVC_merged_features_2_word_grams_dump.txt", False)
+
+# test_experiment(run_svc_for_func, get_features_merged, "SVC_merged_features_with_num_of_all_caps_word_dump.txt", True)
+# test_experiment(run_svc_for_func, get_features_merged, "SVC_merged_features_with_last_char_exclamation_dump.txt", True)
+# test_experiment(run_svc_for_func, get_features_merged, "SVC_merged_features_with_elongated_word_count_dump.txt", True)
+# test_experiment(run_svc_for_func, get_features_merged, "SVC_merged_features_lower_docs_dump.txt", False)
+# test_experiment(run_svc_for_func, get_features_merged, "SVC_merged_features_with_pos_neg_word_count_dump.txt", True)
 
 # print("Statistically different:", statistically_different(acc_list2, acc_list1))
